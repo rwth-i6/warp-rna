@@ -17,16 +17,15 @@ REGISTER_OP("WarpRNA")
     .Input("labels: int32")
     .Input("input_lengths: int32")
     .Input("label_lengths: int32")
+    .Input("min_u: int32")
     .Attr("blank_label: int = 0")
     .Output("costs: float32")
     .Output("grads: float32")
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle input;
-        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 4, &input));
-        c->set_output(0, c->Vector(c->Dim(c->input(0), 0)));
-        c->set_output(1, input);
-        return tf::Status::OK();
-    });
+     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+         c->set_output(0, c->Vector(c->Dim(c->input(1), 0)));
+         c->set_output(1, c->input(0));
+         return tf::Status::OK();
+     });
 
 
 namespace warp_rna {
@@ -65,10 +64,13 @@ class WarpRNAOpGPU : public tf::OpKernel {
         const tf::Tensor* labels = nullptr;
         const tf::Tensor* label_lengths = nullptr;
         const tf::Tensor* input_lengths = nullptr;
+        const tf::Tensor* min_u = nullptr;
         OP_REQUIRES_OK(ctx, ctx->input("log_probs", &log_probs));
         OP_REQUIRES_OK(ctx, ctx->input("labels", &labels));
         OP_REQUIRES_OK(ctx, ctx->input("label_lengths", &label_lengths));
         OP_REQUIRES_OK(ctx, ctx->input("input_lengths", &input_lengths));
+        // We need the minimum label-lengths for allocation, thus we simply pass it here.
+        OP_REQUIRES_OK(ctx, ctx->input("min_u", &min_u));
 
 
         OP_REQUIRES(ctx, log_probs->shape().dims() == 4,
@@ -79,6 +81,8 @@ class WarpRNAOpGPU : public tf::OpKernel {
                      tf::errors::InvalidArgument("label_lengths is not a vector"));
         OP_REQUIRES(ctx, tf::TensorShapeUtils::IsVector(input_lengths->shape()),
                      tf::errors::InvalidArgument("input_lengths is not a vector"));
+        OP_REQUIRES(ctx, min_u->shape().dims() == 0,
+                    tf::errors::InvalidArgument("min_u is not a scalar."));
 
         const auto& log_probs_shape = log_probs->shape();
         const auto batch_size = log_probs_shape.dim_size(0);
@@ -88,6 +92,7 @@ class WarpRNAOpGPU : public tf::OpKernel {
 
         auto log_probs_t = log_probs->tensor<float, 4>();
         auto labels_t = labels->tensor<int32_t, 2>();
+        const Eigen::Tensor<int, 0, Eigen::RowMajor> min_u_t = min_u->tensor<int32_t, 0>();
 
         OP_REQUIRES(
                 ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
@@ -116,20 +121,18 @@ class WarpRNAOpGPU : public tf::OpKernel {
         OP_REQUIRES_OK(ctx, ctx->allocate_output("grads", log_probs->shape(), &grads));
         auto grads_t = grads->tensor<float, 4>();
 
-        // For this we need the HostMemory() call for label_lengths.
-        Eigen::Tensor<int, 0, Eigen::RowMajor> min_u = label_lengths_t.minimum();
-        int max_s = max_time - min_u() + 1;
 
         auto counts_shape = tf::TensorShape{batch_size, max_u, 2};
         tf::Tensor counts;
         OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_UINT32, counts_shape, &counts));
         auto counts_t = counts.tensor<unsigned int, 3>();
 
+        int max_s = max_time - min_u_t() + 1;
         // for both alphas and betas
         auto buffer_shape = tf::TensorShape{batch_size, max_s, max_u};
         tf::Tensor alphas, betas;
-        OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_FLOAT, buffer_shape, &alphas)); // TODO: check error
-        OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_FLOAT, buffer_shape, &betas)); // TODO: check error
+        OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_FLOAT, buffer_shape, &alphas));
+        OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_FLOAT, buffer_shape, &betas));
         auto alphas_t = alphas.tensor<float, 3>();
         auto betas_t = betas.tensor<float, 3>();
 
@@ -148,7 +151,7 @@ class WarpRNAOpGPU : public tf::OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(Name("WarpRNA").Device(::tensorflow::DEVICE_GPU)
-                                       .HostMemory("label_lengths"),
+                                       .HostMemory("min_u"),
                         WarpRNAOpGPU);
 #undef EIGEN_USE_GPU
 #endif
