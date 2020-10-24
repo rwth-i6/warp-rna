@@ -120,6 +120,7 @@ class WarpRNAOpGPU : public tf::OpKernel {
 
         tf::Tensor* grads = nullptr;
         OP_REQUIRES_OK(ctx, ctx->allocate_output("grads", log_probs->shape(), &grads));
+        cudaMemset(grads->data(), 0, batch_size*max_time*max_u*num_classes_raw*sizeof(float));
         auto grads_t = grads->tensor<float, 4>();
 
 
