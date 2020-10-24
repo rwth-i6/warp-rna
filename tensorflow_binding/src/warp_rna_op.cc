@@ -93,6 +93,7 @@ class WarpRNAOpGPU : public tf::OpKernel {
         auto log_probs_t = log_probs->tensor<float, 4>();
         auto labels_t = labels->tensor<int32_t, 2>();
         const Eigen::Tensor<int, 0, Eigen::RowMajor> min_u_t = min_u->tensor<int32_t, 0>();
+        int max_s = max_time - min_u_t() + 1;
 
         OP_REQUIRES(
                 ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
@@ -122,12 +123,12 @@ class WarpRNAOpGPU : public tf::OpKernel {
         auto grads_t = grads->tensor<float, 4>();
 
 
-        auto counts_shape = tf::TensorShape{batch_size, max_u, 2};
+        auto counts_shape = tf::TensorShape{batch_size, max_u* 2};
         tf::Tensor counts;
         OP_REQUIRES_OK(ctx, ctx->allocate_temp(tf::DT_UINT32, counts_shape, &counts));
-        auto counts_t = counts.tensor<unsigned int, 3>();
+        cudaMemset(counts.data(), 0, batch_size*max_u*2*sizeof(uint32_t));
+        auto counts_t = counts.tensor<unsigned int, 2>();
 
-        int max_s = max_time - min_u_t() + 1;
         // for both alphas and betas
         auto buffer_shape = tf::TensorShape{batch_size, max_s, max_u};
         tf::Tensor alphas, betas;
