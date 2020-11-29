@@ -341,7 +341,7 @@ void kernel_fill_costs(float *costs, float *grads, const float *alphas, const fl
 
     if (ratio > 0.001) {
 
-        printf("\nWARNING: sample %d [%d, %d] has a forward/backward mismatch %f / %f\n",
+        printf("\nWARNING: sample %d [%d, %d] has a forward/backward mismatch %f / %f, erasing grads.\n",
                 n, t, u, a, b);
 
         float *g = grads + idx4(n, 0, 0, 0, T, U, V);
@@ -354,10 +354,11 @@ void kernel_fill_costs(float *costs, float *grads, const float *alphas, const fl
             }
         }
 
-        b = (a + b) / 2.0f;
+        //b = (a + b) / 2.0f;
     }
 
-    costs[n] = -b;
+    // -a seemed more stable than -b
+    costs[n] = -a;
 }
 
 rnaStatus_t run_warp_rna(cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
