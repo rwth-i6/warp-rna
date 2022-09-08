@@ -10,11 +10,11 @@ lib_file = imp.find_module('kernels', __path__)[1]
 _warprna = tf.load_op_library(lib_file)
 
 
-def rna_loss(acts, labels, input_lengths, label_lengths, blank_label=0):
+def rna_loss(log_probs, labels, input_lengths, label_lengths, blank_label=0):
     '''Computes the RNA loss between a sequence of activations and a
     ground truth labeling.
     Args:
-        acts: A 4-D Tensor of floats.  The dimensions
+        log_probs: A 4-D Tensor of floats.  The dimensions
                      should be (B, T, U, V), where B is the minibatch index,
                      T is the time index, U is the prediction network sequence
                      length, and V indexes over activations for each
@@ -30,10 +30,8 @@ def rna_loss(acts, labels, input_lengths, label_lengths, blank_label=0):
     Returns:
         1-D float Tensor, the cost of each example in the minibatch
         (as negative log probabilities).
-    * This class performs the softmax operation internally.
-    * The label reserved for the blank symbol should be label 0.
     '''
-    loss, _ = _warprna.warp_rna(acts, labels, input_lengths,
+    loss, _ = _warprna.warp_rna(log_probs, labels, input_lengths,
                                 label_lengths, blank_label)
     return loss
 
@@ -44,6 +42,7 @@ def _RNALossGrad(op, grad_loss, _):
     # NOTE since here we are batch first, cannot use _BroadcastMul
     grad_loss = tf.reshape(grad_loss, (-1, 1, 1, 1))
     return [grad_loss * grad, None, None, None]
+
 
 @ops.RegisterShape("WarpRNA")
 def _RNALossShape(op):
