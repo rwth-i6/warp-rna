@@ -111,6 +111,11 @@ class WarpRNAOpGPU : public tf::OpKernel {
                 tf::errors::InvalidArgument("len(label_lengths) != batch_size.  ",
                                             "len(label_length):  ", label_lengths->dim_size(0),
                                             " batch_size: ", batch_size));
+        OP_REQUIRES(
+                ctx, max_u == labels->dim_size(1) + 1,
+                tf::errors::InvalidArgument("labels.shape[1] + 1 != max_u == log_probs.shape[2].  ",
+                                            "labels.shape[1]:  ", labels->dim_size(1),
+                                            " max_u: ", max_u));
         auto label_lengths_t = label_lengths->vec<int>();
 
 
