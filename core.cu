@@ -334,6 +334,11 @@ void kernel_fill_costs(float *costs, float *grads, const float *alphas, const fl
     int u = yn[n];
     int t = xn[n]-u;
 
+    if(__builtin_expect(t < 0, 0)) {
+        costs[n] = 0.;
+        return;
+    }
+
     float a = alphas[idx3(n, t, u, S, U)];
     float b = betas[idx3(n, 0, 0, S, U)];
 

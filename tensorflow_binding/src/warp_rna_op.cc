@@ -70,6 +70,7 @@ class WarpRNAOpGPU : public tf::OpKernel {
         OP_REQUIRES_OK(ctx, ctx->input("label_lengths", &label_lengths));
         OP_REQUIRES_OK(ctx, ctx->input("input_lengths", &input_lengths));
         // We need the minimum label-lengths for allocation, thus we simply pass it here.
+        // It's actually the min(U-1) here.
         OP_REQUIRES_OK(ctx, ctx->input("min_u", &min_u));
 
 
@@ -86,9 +87,9 @@ class WarpRNAOpGPU : public tf::OpKernel {
 
         const auto& log_probs_shape = log_probs->shape();
         const auto batch_size = log_probs_shape.dim_size(0);
-        const auto max_time = log_probs_shape.dim_size(1);
-        const auto max_u = log_probs_shape.dim_size(2);
-        const auto num_classes_raw = log_probs_shape.dim_size(3);
+        const auto max_time = log_probs_shape.dim_size(1); // T
+        const auto max_u = log_probs_shape.dim_size(2); // U
+        const auto num_classes_raw = log_probs_shape.dim_size(3); // incl blank
 
         auto log_probs_t = log_probs->tensor<float, 4>();
         auto labels_t = labels->tensor<int32_t, 2>();
@@ -102,14 +103,14 @@ class WarpRNAOpGPU : public tf::OpKernel {
         OP_REQUIRES(
                 ctx, batch_size == input_lengths->dim_size(0),
                 tf::errors::InvalidArgument("len(input_lengths) != batch_size.  ",
-                                            "len(input_length):  ", input_lengths->dim_size(0),
+                                            "len(input_lengths):  ", input_lengths->dim_size(0),
                                             " batch_size: ", batch_size));
         auto input_lengths_t = input_lengths->vec<int>();
 
         OP_REQUIRES(
                 ctx, batch_size == label_lengths->dim_size(0),
                 tf::errors::InvalidArgument("len(label_lengths) != batch_size.  ",
-                                            "len(label_length):  ", label_lengths->dim_size(0),
+                                            "len(label_lengths):  ", label_lengths->dim_size(0),
                                             " batch_size: ", batch_size));
         OP_REQUIRES(
                 ctx, max_u == labels->dim_size(1) + 1,
@@ -128,6 +129,10 @@ class WarpRNAOpGPU : public tf::OpKernel {
         cudaMemset(grads->data(), 0, batch_size*max_time*max_u*num_classes_raw*sizeof(float));
         auto grads_t = grads->tensor<float, 4>();
 
+        if(max_s <= 0) {
+            cudaMemset(costs->data(), 0, batch_size*sizeof(float));
+            return;
+        }
 
         auto counts_shape = tf::TensorShape{batch_size, max_u* 2};
         tf::Tensor counts;
