@@ -46,17 +46,34 @@ struct _KernelLoop {
 		resetVec3(blockDim); // threadsPerBlock
 		resetVec3(blockIdx);
 		resetVec3(threadIdx);
+		gridDim = dim_grid;
+		blockDim = dim_block;
 	}
 	bool finished() {
-		// TODO: y/z
-		return blockIdx.x >= gridDim.x;
+		return blockIdx.z >= gridDim.z;
 	}
 	void next() {
-		// TODO: y/z
 		threadIdx.x++;
-		if(threadIdx.x == blockDim.x) {
+		if(threadIdx.x >= blockDim.x) {
 		    threadIdx.x = 0;
-		    blockIdx.x++;
+			threadIdx.y++;
+			if(threadIdx.y >= blockDim.y) {
+				threadIdx.y = 0;
+				threadIdx.z++;
+				if(threadIdx.z >= blockDim.z) {
+					threadIdx.z = 0;
+					blockIdx.x++;
+					if(blockIdx.x >= gridDim.x) {
+						blockIdx.x = 0;
+						blockIdx.y++;
+						if(blockIdx.y >= gridDim.y) {
+							blockIdx.y = 0;
+							blockIdx.z++;
+							// no further check here. finished() covers that
+						}
+					}
+				}
+			}
 		}
 	}
 };
