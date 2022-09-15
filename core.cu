@@ -65,10 +65,10 @@ void kernel_warp_alphas(unsigned int *counts, volatile float *alphas, const int 
 
     unsigned int d = threadIdx.x;
     unsigned int g = blockIdx.x;
-    unsigned int u = blockIdx.y + 1;
+    int u = blockIdx.y + 1;
     unsigned int n = blockIdx.z;
     unsigned int p = g * W;
-    unsigned int t = p + d + 1;
+    int t = p + d + 1;
 
     assert (d < W);
     assert (u <= U);
@@ -166,10 +166,10 @@ void kernel_warp_betas(unsigned int *counts, volatile float *betas, const int *l
 
     unsigned int d = threadIdx.x;
     unsigned int g = blockIdx.x;
-    unsigned int u = blockIdx.y + 1;
+    int u = blockIdx.y + 1;
     unsigned int n = blockIdx.z;
     unsigned int p = g * W;
-    unsigned int t = p + d + 1;
+    int t = p + d + 1;
 
     assert (d < W);
     assert (u <= U);
@@ -282,9 +282,9 @@ void kernel_grads_blank(float *grads, const float *alphas, const float *betas, c
 
     unsigned int d = threadIdx.x;
     unsigned int g = blockIdx.x;
-    unsigned int u = blockIdx.y;
+    int u = blockIdx.y;
     unsigned int n = blockIdx.z;
-    unsigned int t = g * G + d;
+    int t = g * G + d;
 
     assert (u < U);
     assert (d < G);
@@ -315,9 +315,9 @@ void kernel_grads_label(float *grads, const float *alphas, const float *betas,
 
     unsigned int d = threadIdx.x;
     unsigned int g = blockIdx.x;
-    unsigned int u = blockIdx.y;
+    int u = blockIdx.y;
     unsigned int n = blockIdx.z;
-    unsigned int t = g * G + d;
+    int t = g * G + d;
 
     assert (u < U - 1);
     assert (d < G);

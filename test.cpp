@@ -1,5 +1,5 @@
 /*
-compile: g++ -std=c++11 core_cpu.cpp test.cpp -o test.bin
+compile: g++ -std=c++11 -g -O0 core_cpu.cpp test.cpp -o test.bin
 */
 
 #define WARPRNA_ENABLE_CPU
@@ -92,5 +92,6 @@ void test_warprna_forward() {
 
 int main() {
     test_warprna_forward();
+    std::cout << (found_any_error ? "error" : "all correct") << std::endl;
     return found_any_error;
 }
