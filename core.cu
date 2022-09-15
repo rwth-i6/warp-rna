@@ -1,8 +1,21 @@
 #include "core.h"
 
+#ifndef WARPRNA_ENABLE_GPU
+#ifndef __WARPRNA_CPU
+#define __WARPRNA_CPU
+#endif
+#endif
+
 #include <stdio.h>
 #include <assert.h>
 #include <algorithm>
+
+#ifdef __WARPRNA_CPU
+#define W 1
+#define G 1
+#define B 1
+
+#else
 #include <cuda_runtime_api.h>
 #include <device_atomic_functions.h>
 #include <device_launch_parameters.h>
@@ -10,6 +23,11 @@
 #define W 32
 #define G 1024
 #define B 256
+#endif
+
+#ifdef __WARPRNA_CPU
+namespace cpu {
+#endif
 
 __forceinline__ __device__ static int idx2(int n, int u, int U1) {
     return n * U1 + u;
@@ -366,36 +384,58 @@ void kernel_fill_costs(float *costs, float *grads, const float *alphas, const fl
     costs[n] = -a;
 }
 
-rnaStatus_t run_warp_rna(cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
-                         const int *labels, const float *log_probs, float *grads, float *costs,
-                         const int *xn, const int *yn, int N, int T, int S, int U, int V, int blank) {
+#ifdef __WARPRNA_CPU
+} // namespace cpu
+#endif
+
+
+#ifndef __WARPRNA_CPU
+#define start_dev_kernel(kernel, dim_grid, dim_block, args) \
+    kernel <<<dim_grid, dim_block, 0, stream>>> args;
+#endif
+
+#ifdef __WARPRNA_CPU
+rnaStatus_t run_warp_rna_cpu(
+#else
+rnaStatus_t run_warp_rna(
+        cudaStream_t stream,
+#endif
+        unsigned int *counts, float *alphas, float *betas,
+        const int *labels, const float *log_probs, float *grads, float *costs,
+        const int *xn, const int *yn, int N, int T, int S, int U, int V, int blank) {
 
     dim3 threads1(W, 2);
     dim3 blocks1((S + W - 1) / W, U, N);
-    kernel_warp <<<blocks1, threads1, 0, stream>>> (counts, alphas, betas, labels, log_probs, xn, yn, T, S, U, V, blank);
+    start_dev_kernel(
+        kernel_warp, blocks1, threads1, (counts, alphas, betas, labels, log_probs, xn, yn, T, S, U, V, blank));
     if (cudaGetLastError() != cudaSuccess)
         return RNA_STATUS_WARP_FAILED;
 
     if (S > 1) {
-
         dim3 blocks2((S - 1 + G - 1) / G, U, N);
-        kernel_grads_blank <<<blocks2, G, 0, stream>>> (grads, alphas, betas, log_probs, xn, yn, T, S, U, V, blank);
+        start_dev_kernel(
+            kernel_grads_blank, blocks2, G, (grads, alphas, betas, log_probs, xn, yn, T, S, U, V, blank));
         if (cudaGetLastError() != cudaSuccess)
             return RNA_STATUS_GRADS_BLANK_FAILED;
     }
 
     if (U > 1) {
-
         dim3 blocks3((S + G - 1) / G, U - 1, N);
-        kernel_grads_label <<<blocks3, G, 0, stream>>> (grads, alphas, betas, labels, log_probs, xn, yn, T, S, U, V);
+        start_dev_kernel(
+            kernel_grads_label, blocks3, G, (grads, alphas, betas, labels, log_probs, xn, yn, T, S, U, V));
         if (cudaGetLastError() != cudaSuccess)
             return RNA_STATUS_GRADS_LABEL_FAILED;
     }
 
     dim3 blocks4((N + B - 1) / B, 1, 1);
-    kernel_fill_costs <<<blocks4, B, 0, stream>>> (costs, grads, alphas, betas, xn, yn, N, T, S, U, V);
+    start_dev_kernel(
+        kernel_fill_costs, blocks4, B, (costs, grads, alphas, betas, xn, yn, N, T, S, U, V));
     if (cudaGetLastError() != cudaSuccess)
         return RNA_STATUS_COSTS_FAILED;
 
     return RNA_STATUS_SUCCESS;
 }
+
+#undef W
+#undef G
+#undef B

@@ -19,9 +19,17 @@ extern "C" {
 #endif
 
 #ifdef WARPRNA_ENABLE_GPU
-rnaStatus_t run_warp_rna(cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
-                         const int *labels, const float *log_probs, float *grads, float *costs,
-                         const int *xn, const int *yn, int N, int T, int S, int U, int V, int blank);
+rnaStatus_t run_warp_rna(
+    cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
+    const int *labels, const float *log_probs, float *grads, float *costs,
+    const int *xn, const int *yn, int N, int T, int S, int U, int V, int blank);
+#endif
+
+#ifdef WARPRNA_ENABLE_CPU
+rnaStatus_t run_warp_rna_cpu(
+    unsigned int *counts, float *alphas, float *betas,
+    const int *labels, const float *log_probs, float *grads, float *costs,
+    const int *xn, const int *yn, int N, int T, int S, int U, int V, int blank);
 #endif
 
 #ifdef __cplusplus
