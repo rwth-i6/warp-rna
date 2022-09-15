@@ -10,12 +10,14 @@ compile: g++ -std=c++11 core_cpu.cpp test.cpp -o test.bin
 #include <assert.h>
 #include "core.h"
 
+static bool found_any_error = false;
+
 
 void assert_all_close(const float* a, const float* b, size_t size, float rtol) {
     for(size_t i = 0; i < size; ++i) {
         if(std::abs(a[i] - b[i]) > rtol * std::abs(b[i] ? b[i] : 1)) {
             std::cout << "Mismatch at index " << i << ": " << a[i] << " != " << b[i] << std::endl;
-            assert(false);
+            found_any_error = true;
         }
     }
 }
@@ -90,4 +92,5 @@ void test_warprna_forward() {
 
 int main() {
     test_warprna_forward();
+    return found_any_error;
 }
