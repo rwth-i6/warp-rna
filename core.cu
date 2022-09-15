@@ -11,6 +11,9 @@
 #include <algorithm>
 
 #ifdef __WARPRNA_CPU
+#include <math.h>
+#include <stddef.h>
+
 #define W 1
 #define G 1
 #define B 1

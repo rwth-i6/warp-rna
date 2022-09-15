@@ -1,4 +1,9 @@
+#ifndef WARPRNA_ENABLE_CPU
+#define WARPRNA_ENABLE_CPU
+#endif
 #define __WARPRNA_CPU
+
+#include <stddef.h>
 
 #define __forceinline__
 #define __device__
