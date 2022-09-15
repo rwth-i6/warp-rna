@@ -1,4 +1,9 @@
 
+#ifdef __WARPRNA_CPU
+#define cudaMemset memset
+#endif
+
+
 class CLASS_NAME : public tf::OpKernel {
   public:
     explicit CLASS_NAME(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx) {
@@ -94,11 +99,17 @@ class CLASS_NAME : public tf::OpKernel {
         auto alphas_t = alphas.tensor<float, 3>();
         auto betas_t = betas.tensor<float, 3>();
 
-        auto cuda_stream = ctx->eigen_gpu_device().stream();
-        auto rna_status = run_warp_rna(cuda_stream, counts_t.data(), alphas_t.data(), betas_t.data(), labels_t.data(),
-                                  log_probs_t.data(), grads_t.data(), costs_t.data(),
-                                  input_lengths_t.data(), label_lengths_t.data(),
-                                  batch_size, max_time, max_s, max_u, num_classes_raw, blank_label_);
+        auto rna_status =
+#ifdef __WARPRNA_CPU
+            run_warp_rna_cpu(
+#else
+            run_warp_rna(
+                ctx->eigen_gpu_device().stream(),
+#endif
+                counts_t.data(), alphas_t.data(), betas_t.data(), labels_t.data(),
+                log_probs_t.data(), grads_t.data(), costs_t.data(),
+                input_lengths_t.data(), label_lengths_t.data(),
+                batch_size, max_time, max_s, max_u, num_classes_raw, blank_label_);
         OP_REQUIRES(ctx, rna_status == RNA_STATUS_SUCCESS,
                     tf::errors::Internal("warp_rna error in compute_rna_loss:",
                                          rnaGetStatusString(rna_status)));
@@ -108,12 +119,16 @@ class CLASS_NAME : public tf::OpKernel {
       int blank_label_;
 };
 
-#ifdef __WARPRNA_GPU
+#ifdef __WARPRNA_CPU
+REGISTER_KERNEL_BUILDER(Name("WarpRNA").Device(::tensorflow::DEVICE_CPU),
+                        CLASS_NAME);
+#else
 REGISTER_KERNEL_BUILDER(Name("WarpRNA").Device(::tensorflow::DEVICE_GPU)
                                        .HostMemory("min_u"),
                         CLASS_NAME);
-#else
-REGISTER_KERNEL_BUILDER(Name("WarpRNA").Device(::tensorflow::DEVICE_CPU),
-                        CLASS_NAME);
+#endif
+
+#ifdef __WARPRNA_CPU
+#undef cudaMemset
 #endif
 
