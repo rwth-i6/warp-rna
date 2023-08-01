@@ -24,7 +24,7 @@ REGISTER_OP("WarpRNA")
      .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
          c->set_output(0, c->Vector(c->Dim(c->input(1), 0)));
          c->set_output(1, c->input(0));
-         return tf::Status::OK();
+         return tf::Status();
      });
 
 
